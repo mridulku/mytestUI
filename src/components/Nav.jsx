@@ -18,17 +18,16 @@ export default function Nav() {
       borderBottom: "1px solid #e5e7eb"
     }}>
       <Link to="/" style={{ textDecoration: "none", fontWeight: 700 }}>Home</Link>
-       <NavLink to="/sample3" style={linkStyle}>3. Main Screen Feedback</NavLink>
-     
-       <NavLink to="/sample5" style={linkStyle}>5. Workflow Feedback</NavLink>
+       <NavLink to="/sample3" style={linkStyle}>Main Screen Feedback (3)</NavLink>
+                     <NavLink to="/sample6" style={linkStyle}>Submit Button Feedback (6)</NavLink>
+       <NavLink to="/sample1" style={linkStyle}>Post Submit Feedback (1)</NavLink>
 
-      <NavLink to="/sample1" style={linkStyle}>1. View Feedback</NavLink>
-      <NavLink to="/sample2" style={linkStyle}>2. Configure Feedback</NavLink>
      
-         <NavLink to="/sample7" style={linkStyle}>7. Product Dashboard</NavLink>
-        <NavLink to="/sample4" style={linkStyle}>4. Per Task Feedback (Deprioritize)</NavLink>
-              <NavLink to="/sample6" style={linkStyle}>6. Submit Button Feedback</NavLink>
-                                      <NavLink to="/sample8" style={linkStyle}>8. COnfigure 2</NavLink>
+     
+      <NavLink to="/sample2" style={linkStyle}>Configure Feedback (2)</NavLink>
+     
+         <NavLink to="/sample7" style={linkStyle}>Product Dashboard (7)</NavLink>
+   
   
     </nav>
   );

@@ -2,11 +2,11 @@ import { Link } from "react-router-dom";
 
 export default function Home() {
   const links = [
-    { to: "/sample1", label: "View Feedback" },
+
     { to: "/sample2", label: "Configure Feedback" },
     { to: "/sample3", label: "Main Screen General Feedback" },
     { to: "/sample4", label: "Per Task Feedback" },
-   { to: "/sample5", label: "Workflow Feedback" },
+
      { to: "/sample6", label: "Submit Button Feedback" },
           { to: "/sample7", label: "Product Dashboard" },
                     { to: "/sample8", label: "Configure 2" },

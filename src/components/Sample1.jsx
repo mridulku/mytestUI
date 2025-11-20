@@ -1,564 +1,964 @@
-import { useMemo, useState } from "react";
+import { useState, useEffect } from "react";
 
 /**
- * Sample1 — Feedback Viewer (Answered-only, with Aspect Summary)
- * - List only answered entries
- * - Top tiles: Total Answered, Avg Score (x.xx / 5)
- * - Aspect summary: one line per aspect with answered count + up/down % and counts
- * - Shown/Not Shown summary as a small line under the list
- * - Right panel: exact answers for the selected contributor
+ * Sample1 — Task screen with 3-step submit flow
+ *
+ * Flow:
+ * 1. Click "Submit" → Task submit modal (confidence + task comments).
+ * 2. On Confirm → "Give additional feedback?" modal (Yes / Not now).
+ * 3. If Yes → Project feedback modal (NPS + quick reactions + project comment).
  */
 
-const MOCK = [
-  {
-    id: "u001",
-    user: "User 1",
-    tasksDone: 37,
-    survey: {
-      shown: true,
-      askedAtTask: 12,
-      answered: true,
-      score: 4,
-      reactions: { Instructions: "down", Reviewer: "up", "Tool performance": "up", "UI / Layout": "up" },
-      comment: "Step 2 example contradicted header; rest smooth."
-    },
-    device: "Chrome • Win",
-    updatedAt: "2h ago"
-  },
-  {
-    id: "u002",
-    user: "User 2",
-    tasksDone: 9,
-    survey: {
-      shown: true,
-      askedAtTask: 8,
-      answered: false,
-      score: null,
-      reactions: null,
-      comment: ""
-    },
-    device: "Safari • iOS",
-    updatedAt: "yesterday"
-  },
-  {
-    id: "u003",
-    user: "User 3",
-    tasksDone: 64,
-    survey: {
-      shown: true,
-      askedAtTask: 10,
-      answered: true,
-      score: 5,
-      reactions: { Instructions: "up", Reviewer: "up", "Tool performance": "up", "UI / Layout": "up" },
-      comment: "Clear rules; reviewer fast."
-    },
-    device: "Chrome • Mac",
-    updatedAt: "3d ago"
-  },
-  {
-    id: "u004",
-    user: "User 4",
-    tasksDone: 15,
-    survey: {
-      shown: true,
-      askedAtTask: 5,
-      answered: true,
-      score: 2,
-      reactions: { Instructions: "down", Reviewer: "down", "Tool performance": "down", "UI / Layout": "down" },
-      comment: "Conflicting guidelines, slow support."
-    },
-    device: "Edge • Win",
-    updatedAt: "1h ago"
-  },
-  {
-    id: "u005",
-    user: "User 5",
-    tasksDone: 22,
-    survey: {
-      shown: false,
-      askedAtTask: null,
-      answered: false,
-      score: null,
-      reactions: null,
-      comment: ""
-    },
-    device: "Firefox • Linux",
-    updatedAt: "5h ago"
-  }
-];
-
 export default function Sample1() {
-  const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(null);
+  // Modals
+  const [submitOpen, setSubmitOpen] = useState(false);      // step 1
+  const [askExtraOpen, setAskExtraOpen] = useState(false);  // step 2
+  const [projectFbOpen, setProjectFbOpen] = useState(false); // step 3
 
-  // Only answered rows in the main list
-  const answeredRows = useMemo(() => {
-    return MOCK.filter(r => r.survey.answered).filter(r =>
-      r.user.toLowerCase().includes(query.toLowerCase())
-    );
-  }, [query]);
+  // Lock body scroll whenever any modal is open
+  const anyModalOpen = submitOpen || askExtraOpen || projectFbOpen;
+  useEffect(() => {
+    if (!anyModalOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [anyModalOpen]);
 
-  // Selected
-  const sel = useMemo(() => {
-    const byId = answeredRows.find(r => r.id === selectedId);
-    return byId ?? answeredRows[0] ?? null;
-  }, [answeredRows, selectedId]);
+  // Task-level state
+  const [confidence, setConfidence] = useState("yes");
+  const [comments, setComments] = useState("");
 
-  // Header metrics (no "Total Shown" anymore)
-  const metrics = useMemo(() => {
-    const totalAnswered = MOCK.filter(r => r.survey.answered).length;
-    const scores = MOCK.filter(r => r.survey.answered && typeof r.survey.score === "number")
-                       .map(r => r.survey.score);
-    const avgScore = scores.length
-      ? `${(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(2)} / 5`
-      : "—";
-    return { totalAnswered, avgScore };
-  }, []);
+  // Project feedback state
+  const [projectForm, setProjectForm] = useState({
+    nps: -1,
+    featureRatings: {}, // { [key]: 'up' | 'down' | null }
+    comment: "",
+  });
 
-  // Aspect summary (answered + reactions): per aspect line with counts + %
-  const aspectSummary = useMemo(() => {
-    const counts = {}; // { aspect: { up: n, down: n } }
-    for (const r of MOCK) {
-      if (!r.survey.answered || !r.survey.reactions) continue;
-      for (const [aspect, val] of Object.entries(r.survey.reactions)) {
-        if (!counts[aspect]) counts[aspect] = { up: 0, down: 0 };
-        if (val === "up") counts[aspect].up += 1;
-        if (val === "down") counts[aspect].down += 1;
-      }
-    }
-    const order = ["Instructions", "Reviewer", "Tool performance", "UI / Layout"];
-    const keys = Array.from(new Set([...order, ...Object.keys(counts)]));
+  // For the header in project feedback modal
+  const CURRENT_PROJECT = { name: "TextbookQnAProject", workflow: "Chemistry" };
 
-    return keys.map(k => {
-      const up = counts[k]?.up ?? 0;
-      const down = counts[k]?.down ?? 0;
-      const total = up + down;
-      const upPct = total ? Math.round((up / total) * 100) : 0;
-      const downPct = total ? 100 - upPct : 0;
-      return { aspect: k, up, down, total, upPct, downPct };
-    }).filter(row => row.total > 0);
-  }, []);
+  /* ---------- Handlers ---------- */
 
-  // Shown vs Not Shown (brief line under the list)
-  const shownStats = useMemo(() => {
-    const shown = MOCK.filter(r => r.survey.shown).length;
-    const notShown = MOCK.length - shown;
-    return { shown, notShown };
-  }, []);
+  const openSubmit = () => setSubmitOpen(true);
+
+  const confirmTaskSubmit = () => {
+    const payload = {
+      confidence,
+      comments,
+    };
+    console.log("SUBMIT_TASK_ONLY_PAYLOAD", payload);
+
+    // Reset task-level bits
+    setSubmitOpen(false);
+    setConfidence("yes");
+    setComments("");
+
+    // Ask if they want to give extra feedback
+    setAskExtraOpen(true);
+  };
+
+  const skipExtraFeedback = () => {
+    setAskExtraOpen(false);
+    // nothing else – they just go back to the task screen
+  };
+
+  const startProjectFeedback = () => {
+    setAskExtraOpen(false);
+    // reset project form each time
+    setProjectForm({ nps: -1, featureRatings: {}, comment: "" });
+    setProjectFbOpen(true);
+  };
+
+  const submitProjectFeedback = (e) => {
+    e.preventDefault();
+    const payload = {
+      project: CURRENT_PROJECT,
+      nps: projectForm.nps,
+      featureRatings: projectForm.featureRatings,
+      comment: projectForm.comment,
+    };
+    console.log("PROJECT_FEEDBACK_PAYLOAD", payload);
+
+    setProjectFbOpen(false);
+    setProjectForm({ nps: -1, featureRatings: {}, comment: "" });
+  };
 
   return (
     <section style={sx.page}>
-      {/* Header */}
-      <div style={sx.headerRow}>
-        <h2 style={sx.h2}>Feedback Viewer</h2>
+      {/* Top bar */}
+      <header style={sx.topbar}>
+        <div style={sx.brand}>
+          <span style={sx.brandMark} />
+          <span style={sx.brandText}>FT Studio App</span>
+        </div>
         <div style={{ flex: 1 }} />
-        <button style={sx.secondaryBtn} onClick={() => console.log("EXPORT_CSV")}>Export CSV</button>
-      </div>
-
-      {/* Top tiles — only total answered + avg score */}
-      <div style={sx.tilesRow}>
-        <Tile label="Total Answered" value={metrics.totalAnswered} />
-        <Tile label="Avg Score" value={metrics.avgScore} />
-      </div>
-
-      {/* Aspect summary: one line per aspect */}
-      <div style={sx.aspectCard}>
-        <div style={sx.aspectHeader}>Aspect reactions (answered only)</div>
-        <div style={sx.aspectList}>
-          {aspectSummary.map(({ aspect, total, up, down, upPct, downPct }) => (
-            <div key={aspect} style={sx.aspectRowLine}>
-              <div style={sx.aspectLabel}>{aspect}</div>
-              <div style={sx.aspectLineMetrics}>
-                <span style={sx.aspectMetricChunk}>
-                  Answered: <b>{total}</b>
-                </span>
-                <span style={sx.dot}>•</span>
-                <span style={sx.aspectMetricChunk}>
-                  <ThumbUp /> {upPct}% ({up})
-                </span>
-                <span style={sx.dot}>•</span>
-                <span style={sx.aspectMetricChunk}>
-                  <ThumbDown /> {downPct}% ({down})
-                </span>
-              </div>
-            </div>
-          ))}
-          {aspectSummary.length === 0 && (
-            <div style={{ padding: 10, fontSize: 12, color: "#6b7280" }}>
-              No reactions recorded yet.
-            </div>
-          )}
+        <button
+          title="Give Feedback (disabled in this sample)"
+          style={{ ...sx.fbBtn, opacity: 0.6, cursor: "not-allowed" }}
+          disabled
+          onClick={() => {}}
+        >
+          Give Feedback
+        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button style={sx.primaryBtn} onClick={openSubmit}>
+            Submit
+          </button>
+          <button style={sx.tertiaryBtn}>Exit</button>
         </div>
-        <div style={sx.aspectFootNote}>
-          Based on contributors who answered the survey and provided quick reactions for each aspect.
-        </div>
-      </div>
+      </header>
 
-      {/* Body: two-column */}
+      {/* Body grid */}
       <div style={sx.body}>
-        {/* Left: answered list + small shown/not shown line */}
-        <aside style={sx.left}>
-          <div style={sx.searchRow}>
-            <input
-              placeholder="Search contributor…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              style={sx.input}
-            />
-          </div>
-
-          <div style={sx.list}>
-            {answeredRows.map(r => {
-              const active = r.id === sel?.id;
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => setSelectedId(r.id)}
-                  style={{ ...sx.rowBtn, ...(active ? sx.rowBtnActive : null) }}
-                >
-                  <div style={sx.userLine}>
-                    <span style={sx.userName}>{r.user}</span>
-                    <Badge tone={toneForScore(r.survey.score)}>
-                      {Number(r.survey.score).toFixed(1)}
-                    </Badge>
-                  </div>
-                  <div style={sx.subLine}>
-                    <span>Tasks: <b>{r.tasksDone}</b></span>
-                    <span>•</span>
-                    <span>Asked at: {r.survey.askedAtTask ? `task ${r.survey.askedAtTask}` : "—"}</span>
-                  </div>
-                  <div style={sx.subtle}>{r.device} • {r.updatedAt}</div>
-                </button>
-              );
-            })}
-            {answeredRows.length === 0 && (
-              <div style={sx.empty}>No answered surveys match your search.</div>
-            )}
-          </div>
-
-          <div style={sx.shownStrip}>
-            <span style={sx.subtle}>Shown: <b>{shownStats.shown}</b></span>
-            <span style={sx.dot}>•</span>
-            <span style={sx.subtle}>Not shown: <b>{shownStats.notShown}</b></span>
+        {/* Left: Instructions */}
+        <aside style={sx.panel}>
+          <div style={sx.panelHeader}>TASK INSTRUCTIONS</div>
+          <div style={sx.panelBody}>
+            <ol style={sx.ol}>
+              <li><b>Read Carefully:</b> review provided text.</li>
+              <li><b>Listen:</b> gather auditory cues.</li>
+              <li><b>Watch:</b> confirm visual details.</li>
+              <li><b>Cross-Reference:</b> answer using all sources.</li>
+            </ol>
+            <div style={sx.caption}>Guidelines</div>
+            <ul style={sx.ul}>
+              <li>Quiet environment; good headphones.</li>
+              <li>Follow style & formatting rules.</li>
+              <li>Flag ambiguous cases via feedback.</li>
+            </ul>
           </div>
         </aside>
 
-        {/* Right: exact details */}
-        <main style={sx.right}>
-          {!sel ? (
-            <div style={sx.placeholder}>Select a contributor to view their survey.</div>
-          ) : (
-            <div style={sx.detailCard}>
-              <div style={sx.detailHeader}>
-                <div>
-                  <div style={sx.detailTitle}>{sel.user}</div>
-                  <div style={sx.detailMeta}>
-                    Tasks done: <b>{sel.tasksDone}</b>
-                    {sel.survey.askedAtTask ? <> • Asked at task <b>{sel.survey.askedAtTask}</b></> : null}
-                    <> • {sel.device}</>
-                  </div>
-                </div>
-                <div>
-                  <Tag tone="ok">Answered</Tag>
-                </div>
-              </div>
+        {/* Center: Work Area */}
+        <main style={sx.work}>
+          <div style={sx.metaBar}>
+            <span>⏱️ 03:21</span>
+            <span>•</span>
+            <span>❗ 2</span>
+            <span>•</span>
+            <span>✔ 2</span>
+          </div>
 
-              <div style={sx.section}>
-                <div style={sx.sectionLabel}>Recommendation score</div>
-                <ScoreBar value={sel.survey.score} max={5} />
-              </div>
+          <Section title="INPUT">
+            <Field label="Using">
+              <div style={sx.readonlyBox}>“Using”</div>
+            </Field>
+            <Field label="Video">
+              <div style={sx.videoBox}>No compatible source was found for this media.</div>
+            </Field>
+          </Section>
 
-              <div style={sx.section}>
-                <div style={sx.sectionLabel}>Quick reactions</div>
-                <ReactionsGrid reactions={sel.survey.reactions} />
-              </div>
+          <Section title="OUTPUT">
+            <RichEditor />
+          </Section>
+        </main>
 
-              <div style={sx.section}>
-                <div style={sx.sectionLabel}>Comment</div>
-                <div style={sx.commentBox}>
-                  {(sel.survey.comment || "").trim().length
-                    ? sel.survey.comment
-                    : <span style={sx.subtle}>—</span>}
+        {/* Right: Supplementary Details */}
+        <aside style={{ ...sx.panel, width: 320 }}>
+          <div style={sx.panelHeader}>SUPPLEMENTARY DETAILS</div>
+          <div style={sx.panelBody}>
+            <Attr
+              required
+              label="Which stage of water cycle is described in the Video?"
+              hint="Pick the stage described in the given Video."
+            >
+              <Select
+                options={["condensation", "evaporation", "precipitation", "collection"]}
+                value="condensation"
+              />
+            </Attr>
+            <Attr
+              required
+              label="Which stage of water cycle is described in the Audio?"
+              hint="Pick the stage described in the given Audio."
+            >
+              <Select options={["1", "2", "3", "4"]} value="1" />
+            </Attr>
+          </div>
+        </aside>
+      </div>
+
+      {/* Modal 1: Submit Task (confidence + comments) */}
+      {submitOpen && (
+        <div
+          style={sx.modalOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="submit-title"
+        >
+          <div style={sx.modal}>
+            <div style={sx.modalHeader}>
+              <div id="submit-title" style={{ fontWeight: 600, color: "#111827" }}>
+                Submit Task
+              </div>
+              <button
+                aria-label="Close"
+                onClick={() => setSubmitOpen(false)}
+                style={sx.iconBtn}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+
+            <div style={sx.modalBody}>
+              <fieldset style={sx.group}>
+                <legend style={sx.legend}>Are you confident about your response?</legend>
+                <div style={sx.radioCol}>
+                  <label style={sx.radioRow}>
+                    <input
+                      type="radio"
+                      name="confidence"
+                      value="yes"
+                      checked={confidence === "yes"}
+                      onChange={(e) => setConfidence(e.target.value)}
+                    />
+                    <span>Yes, I am confident</span>
+                  </label>
+                  <label style={sx.radioRow}>
+                    <input
+                      type="radio"
+                      name="confidence"
+                      value="review"
+                      checked={confidence === "review"}
+                      onChange={(e) => setConfidence(e.target.value)}
+                    />
+                    <span>No, my response needs a review</span>
+                  </label>
                 </div>
+              </fieldset>
+
+              <label style={sx.field}>
+                <span style={sx.label}>Additional comments for this task (optional)</span>
+                <textarea
+                  rows={4}
+                  value={comments}
+                  onChange={(e) => setComments(e.target.value.slice(0, 500))}
+                  placeholder="Note anything specific about this task that the reviewer should know…"
+                  style={sx.textarea}
+                />
+                <div style={sx.hint}>{comments.length}/500</div>
+              </label>
+
+              <div style={sx.modalActions}>
+                <button
+                  type="button"
+                  onClick={() => setSubmitOpen(false)}
+                  style={sx.tertiaryBtn}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmTaskSubmit}
+                  style={sx.primaryBtn}
+                >
+                  Confirm
+                </button>
               </div>
             </div>
-          )}
-        </main>
-      </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 2: Ask if they want extra feedback */}
+      {askExtraOpen && (
+        <div
+          style={sx.modalOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="extra-fb-title"
+        >
+          <div style={sx.modalSmall}>
+            <div style={sx.modalHeader}>
+              <div
+                id="extra-fb-title"
+                style={{ fontWeight: 600, color: "#111827" }}
+              >
+                Thanks for submitting
+              </div>
+              <button
+                aria-label="Close"
+                onClick={skipExtraFeedback}
+                style={sx.iconBtn}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            <div style={sx.modalBody}>
+              <p style={{ fontSize: 14, color: "#374151", marginTop: 0 }}>
+                Would you like to share additional feedback about this project?
+              </p>
+              <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                This takes less than a minute and helps us improve guidelines,
+                reviewers, and tools.
+              </p>
+
+              <div style={sx.modalActions}>
+                <button
+                  type="button"
+                  onClick={skipExtraFeedback}
+                  style={sx.tertiaryBtn}
+                >
+                  Not now
+                </button>
+                <button
+                  type="button"
+                  onClick={startProjectFeedback}
+                  style={sx.primaryBtn}
+                >
+                  Yes, give feedback
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Project feedback only */}
+      {projectFbOpen && (
+        <div
+          style={sx.modalOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="project-fb-title"
+        >
+          <div style={sx.modal}>
+            <div style={sx.modalHeader}>
+              <div>
+                <div
+                  id="project-fb-title"
+                  style={{ fontWeight: 600, color: "#111827" }}
+                >
+                  Project Feedback
+                </div>
+                <div style={sx.sectionSub}>
+                  {CURRENT_PROJECT.name} • {CURRENT_PROJECT.workflow}
+                </div>
+              </div>
+              <button
+                aria-label="Close"
+                onClick={() => setProjectFbOpen(false)}
+                style={sx.iconBtn}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+
+            <form onSubmit={submitProjectFeedback} style={sx.modalBody}>
+              <fieldset style={sx.group}>
+                <legend style={sx.legend}>
+                  Based on your experience, how likely are you to recommend this
+                  project to another contributor?
+                </legend>
+                <NpsPicker
+                  value={projectForm.nps}
+                  onChange={(v) =>
+                    setProjectForm((f) => ({ ...f, nps: v }))
+                  }
+                />
+                <div style={sx.npsHintRow}>
+                  <span style={sx.npsHintLeft}>0 = Not at all likely</span>
+                  <span style={sx.npsHintRight}>10 = Extremely likely</span>
+                </div>
+              </fieldset>
+
+              <fieldset style={sx.group}>
+                <legend style={sx.legend}>Quick reactions to key aspects</legend>
+                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>
+                  Use 👍 / 👎 to rate different parts of this project. Hover on
+                  the ⓘ icon if you’re unsure what an item means.
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {QUICK_ASPECTS.map((aspect) => (
+                    <FeatureRow
+                      key={aspect.key}
+                      emoji={aspect.emoji}
+                      label={aspect.label}
+                      tooltip={aspect.help}
+                      rating={projectForm.featureRatings[aspect.key] ?? null}
+                      onRate={(val) =>
+                        setProjectForm((f) => ({
+                          ...f,
+                          featureRatings: {
+                            ...f.featureRatings,
+                            [aspect.key]: val,
+                          },
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+              </fieldset>
+
+              <label style={sx.field}>
+                <span style={sx.label}>Anything else about this project? (optional)</span>
+                <span style={{ fontSize: 12, color: "#6b7280" }}>
+                  Use this for overall project feedback. If you want to flag a
+                  specific task, please use the task comments box.
+                </span>
+                <textarea
+                  rows={4}
+                  value={projectForm.comment}
+                  onChange={(e) =>
+                    setProjectForm((f) => ({
+                      ...f,
+                      comment: e.target.value.slice(0, 400),
+                    }))
+                  }
+                  placeholder="Instruction gaps, review practices, edge cases, payment concerns…"
+                  style={sx.textarea}
+                />
+                <div style={sx.hint}>
+                  {(projectForm.comment ?? "").length}/400
+                </div>
+              </label>
+
+              <div style={sx.modalActions}>
+                <button
+                  type="button"
+                  onClick={() => setProjectFbOpen(false)}
+                  style={sx.tertiaryBtn}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={sx.primaryBtn}
+                  disabled={projectForm.nps === -1}
+                >
+                  Submit feedback
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
-/* ---------- Small components ---------- */
+/* ---------------- Constants ---------------- */
 
-function Tile({ label, value }) {
+const QUICK_ASPECTS = [
+  {
+    key: "instructions",
+    emoji: "📖",
+    label: "Guidelines",
+    help: "How clear and easy-to-follow the written guidelines and examples for this project were.",
+  },
+  {
+    key: "reviewer",
+    emoji: "🧑‍⚖️",
+    label: "Reviewer decisions",
+    help: "How fair and consistent reviewer feedback and accept/reject decisions felt.",
+  },
+  {
+    key: "tool",
+    emoji: "⚙️",
+    label: "User interface",
+    help: "How stable and responsive the FTS tool felt while working on this project.",
+  },
+  {
+    key: "workload",
+    emoji: "⏱️",
+    label: "Workload per task",
+    help: "How reasonable the time and effort per task felt for this project.",
+  },
+  {
+    key: "payment",
+    emoji: "💰",
+    label: "Payment",
+    help: "How clear and fair the payment for this project felt to you.",
+  },
+];
+
+/* ---------------- Layout primitives ---------------- */
+
+function Section({ title, children }) {
   return (
-    <div style={sx.tile}>
-      <div style={sx.tileLabel}>{label}</div>
-      <div style={sx.tileValue}>{value}</div>
-    </div>
+    <section style={sx.section}>
+      <div style={sx.sectionHeader}>{title}</div>
+      <div>{children}</div>
+    </section>
   );
 }
 
-function Tag({ children, tone = "muted" }) {
-  const styles = {
-    base: {
-      padding: "2px 8px",
-      borderRadius: 999,
-      fontSize: 12,
-      border: "1px solid #e5e7eb",
-      background: "#fff",
-      color: "#374151",
-      whiteSpace: "nowrap",
-    },
-    ok:    { borderColor: "#a7f3d0", background: "#ecfdf5", color: "#065f46" },
-    warn:  { borderColor: "#fde68a", background: "#fffbeb", color: "#92400e" },
-    muted: { borderColor: "#e5e7eb", background: "#fafafa", color: "#6b7280" },
-  };
-  return <span style={{ ...styles.base, ...(styles[tone] || {}) }}>{children}</span>;
-}
-
-function Badge({ tone, children }) {
-  const tones = {
-    good: { bg: "#ecfdf5", text: "#065f46", border: "#a7f3d0" },
-    ok:   { bg: "#eff6ff", text: "#1e40af", border: "#bfdbfe" },
-    poor: { bg: "#fef2f2", text: "#991b1b", border: "#fecaca" },
-  }[tone];
+function Field({ label, children }) {
   return (
-    <span style={{
-      background: tones.bg,
-      color: tones.text,
-      border: `1px solid ${tones.border}`,
-      borderRadius: 12,
-      padding: "2px 8px",
-      fontSize: 12,
-      fontWeight: 600,
-    }}>
+    <div style={{ marginBottom: 16 }}>
+      <div style={sx.fieldLabel}>{label}</div>
       {children}
-    </span>
-  );
-}
-
-function toneForScore(v) {
-  if (v >= 4.3) return "good";
-  if (v >= 3.5) return "ok";
-  return "poor";
-}
-
-function ScoreBar({ value, max = 5 }) {
-  if (typeof value !== "number") return <span style={sx.subtle}>No response</span>;
-  const pct = Math.max(0, Math.min(1, value / max));
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={sx.barOuter}>
-        <div style={{ ...sx.barInner, width: `${pct * 100}%` }} />
-      </div>
-      <span style={sx.scoreText}>{value} / {max}</span>
     </div>
   );
 }
 
-function ReactionsGrid({ reactions }) {
-  if (!reactions) return <span style={sx.subtle}>No reactions</span>;
-  const entries = Object.entries(reactions);
+function Attr({ label, hint, required, children }) {
   return (
-    <div style={sx.reactGrid}>
-      {entries.map(([k, v]) => (
-        <div key={k} style={sx.reactRow}>
-          <div style={{ color: "#374151" }}>{k}</div>
-          <div>{v === "up" ? <ThumbUp /> : <ThumbDown />}</div>
-        </div>
+    <div style={sx.attr}>
+      <div style={sx.attrLabel}>
+        {label} {required && <span style={{ color: "#7c3aed" }}>*</span>}
+      </div>
+      {hint && <div style={sx.attrHint}>{hint}</div>}
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function Select({ options, value }) {
+  return (
+    <select defaultValue={value} style={sx.select}>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function RichEditor() {
+  return (
+    <div>
+      <div style={sx.toolbar}>
+        <span style={sx.tool}>File</span>
+        <span style={sx.tool}>Edit</span>
+        <span style={sx.tool}>View</span>
+        <span style={sx.tool}>Insert</span>
+        <span style={sx.tool}>Format</span>
+        <span style={sx.tool}>Tools</span>
+        <span style={sx.tool}>Table</span>
+        <div style={{ flex: 1 }} />
+        <span style={sx.tool}>B</span>
+        <span style={sx.tool}>I</span>
+        <span style={sx.tool}>•</span>
+        <span style={sx.tool}>1.</span>
+      </div>
+      <textarea
+        rows={8}
+        defaultValue="Type your answer here…"
+        style={sx.editor}
+      />
+    </div>
+  );
+}
+
+/* ---------------- Small widgets ---------------- */
+
+function NpsPicker({ value = -1, onChange }) {
+  return (
+    <div style={sx.npsRow}>
+      {Array.from({ length: 11 }, (_, n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n)}
+          aria-pressed={value === n}
+          style={{ ...sx.npsBtn, ...(value === n ? sx.npsBtnActive : null) }}
+        >
+          {n}
+        </button>
       ))}
     </div>
   );
 }
 
-function ThumbUp() {
+function FeatureRow({ emoji, label, tooltip, rating, onRate }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-label="thumbs up">
-      <path d="M7 9l3-6 1 1c.8.8 1.2 1.2 1.2 2.2V7h3c1.1 0 2 .9 2 2 0 .3-.1.6-.2.8l-2 5c-.3.8-1 1.2-1.8 1.2H8c-1.1 0-2-.9-2-2V9h1z" fill="#059669" opacity="0.9"/>
-    </svg>
-  );
-}
-function ThumbDown() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-label="thumbs down">
-      <path d="M13 11l-3 6-1-1c-.8-.8-1.2-1.2-1.2-2.2V13H4c-1.1 0-2-.9-2-2 0-.3.1-.6.2-.8l2-5C4.5 4.4 5.2 4 6 4h6c1.1 0 2 .9 2 2v5h-1z" fill="#b91c1c" opacity="0.9"/>
-    </svg>
+    <div style={sx.featureRow}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 16 }}>{emoji}</span>
+        <span style={sx.featureLabel}>{label}</span>
+        {tooltip && (
+          <span
+            title={tooltip}
+            style={{
+              marginLeft: 4,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: 16,
+              width: 16,
+              borderRadius: "999px",
+              border: "1px solid #d1d5db",
+              background: "#f9fafb",
+              fontSize: 10,
+              fontWeight: 600,
+              color: "#6b7280",
+              cursor: "help",
+            }}
+          >
+            i
+          </span>
+        )}
+      </div>
+
+      <div style={sx.thumbs}>
+        <button
+          type="button"
+          onClick={() => onRate(rating === "up" ? null : "up")}
+          aria-pressed={rating === "up"}
+          title="Thumbs up"
+          style={{ ...sx.thumbBtn, ...(rating === "up" ? sx.thumbActiveUp : null) }}
+        >
+          👍
+        </button>
+        <button
+          type="button"
+          onClick={() => onRate(rating === "down" ? null : "down")}
+          aria-pressed={rating === "down"}
+          title="Thumbs down"
+          style={{
+            ...sx.thumbBtn,
+            ...(rating === "down" ? sx.thumbActiveDown : null),
+          }}
+        >
+          👎
+        </button>
+      </div>
+    </div>
   );
 }
 
-/* ---------- Styles ---------- */
+/* ---------------- Styles ---------------- */
 
 const sx = {
-  page: { padding: "20px 24px", background: "#f7f7fb", minHeight: "100%" },
+  page: { background: "#f7f7fb", minHeight: "100vh" },
 
-  h2: { margin: 0, fontSize: 20, fontWeight: 600, color: "#111827" },
-  headerRow: { display: "flex", alignItems: "center", marginBottom: 12 },
-
-  secondaryBtn: {
-    height: 34,
-    border: "1px solid #d1d5db",
-    borderRadius: 6,
-    background: "white",
+  topbar: {
+    height: 48,
+    display: "flex",
+    alignItems: "center",
     padding: "0 12px",
-    fontSize: 13,
-  },
-
-  // now only 2 tiles
-  tilesRow: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 16,
-    marginBottom: 12,
-  },
-  tile: {
-    background: "white",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
-    padding: "12px 14px",
-  },
-  tileLabel: { fontSize: 12, color: "#6b7280" },
-  tileValue: { marginTop: 4, fontSize: 20, fontWeight: 700, color: "#111827" },
-
-  aspectCard: {
-    background: "white",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    marginBottom: 16,
-    overflow: "hidden"
-  },
-  aspectHeader: {
-    padding: "10px 12px",
-    background: "#f3f4f6",
     borderBottom: "1px solid #e5e7eb",
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#374151",
+    background: "white",
+    position: "sticky",
+    top: 0,
+    zIndex: 5,
   },
+  brand: { display: "flex", alignItems: "center", gap: 8 },
+  brandMark: { width: 14, height: 14, borderRadius: 3, background: "#34d399" },
+  brandText: { fontWeight: 600, color: "#111827" },
 
-  // new single-line layout
-  aspectList: {
-    padding: 10,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
+  fbBtn: {
+    marginRight: 12,
+    background: "#34d399",
+    color: "#064e3b",
+    border: "1px solid #10b981",
+    borderRadius: 8,
+    padding: "8px 12px",
+    fontWeight: 600,
   },
-  aspectRowLine: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    padding: "4px 4px",
+  primaryBtn: {
+    border: "1px solid #6d28d9",
+    background: "#6d28d9",
+    color: "white",
+    borderRadius: 8,
+    padding: "8px 12px",
   },
-  aspectLabel: { fontSize: 12, color: "#374151", fontWeight: 600 },
-  aspectLineMetrics: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    fontSize: 12,
-    color: "#4b5563",
-    flexWrap: "wrap",
+  tertiaryBtn: {
+    border: "1px solid #e5e7eb",
+    background: "white",
+    color: "#374151",
+    borderRadius: 8,
+    padding: "8px 12px",
   },
-  aspectMetricChunk: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 4,
-  },
-  aspectFootNote: { padding: "0 12px 12px 12px", fontSize: 12, color: "#6b7280" },
 
   body: {
     display: "grid",
-    gridTemplateColumns: "minmax(320px, 420px) 1fr",
+    gridTemplateColumns: "280px 1fr 320px",
     gap: 16,
-    alignItems: "start",
+    padding: 16,
+    maxWidth: 1400,
+    margin: "0 auto",
   },
 
-  /* Left */
-  left: {
+  panel: {
     background: "white",
     border: "1px solid #e5e7eb",
     borderRadius: 8,
     overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-    minHeight: 420,
   },
-  searchRow: { padding: 10, borderBottom: "1px solid #e5e7eb" },
-  input: {
-    width: "100%",
-    height: 34, border: "1px solid #d1d5db", borderRadius: 6, padding: "0 10px",
-    background: "white", color: "#111827", fontSize: 13
+  panelHeader: {
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#6b7280",
+    borderBottom: "1px solid #e5e7eb",
+    background: "#fafafa",
   },
-  list: { display: "grid" },
-  rowBtn: {
-    display: "grid", gap: 4, textAlign: "left",
-    background: "white", border: "none", borderBottom: "1px solid #f1f5f9",
-    padding: "10px 12px", cursor: "pointer"
-  },
-  rowBtnActive: { background: "#f9fafb" },
-  userLine: { display: "flex", alignItems: "center", justifyContent: "space-between" },
-  userName: { fontWeight: 600, color: "#111827" },
-  subLine: { display: "flex", gap: 8, fontSize: 12, color: "#4b5563" },
-  subtle: { fontSize: 12, color: "#6b7280" },
-  empty: { padding: 12, color: "#6b7280", fontSize: 13 },
+  panelBody: { padding: 12 },
 
-  shownStrip: {
+  ol: {
+    margin: "6px 0 12px 16px",
+    color: "#374151",
+    fontSize: 13,
+    lineHeight: 1.5,
+  },
+  ul: {
+    margin: "6px 0 0 16px",
+    color: "#374151",
+    fontSize: 13,
+    lineHeight: 1.5,
+  },
+  caption: { marginTop: 8, color: "#6b7280", fontSize: 12, fontWeight: 600 },
+
+  work: {
+    background: "white",
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    padding: 12,
+    minHeight: 520,
+  },
+  metaBar: {
     display: "flex",
     gap: 8,
     alignItems: "center",
-    justifyContent: "center",
-    padding: 10,
-    borderTop: "1px solid #e5e7eb",
-    background: "#fafafa"
+    color: "#6b7280",
+    fontSize: 12,
+    marginBottom: 8,
   },
-  dot: { color: "#9ca3af" },
 
-  /* Right */
-  right: { minHeight: 420 },
-  placeholder: {
-    background: "white", border: "1px solid #e5e7eb", borderRadius: 8, padding: 16,
-    color: "#6b7280", fontSize: 13
+  section: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    marginBottom: 12,
+    overflow: "hidden",
   },
-  detailCard: {
-    background: "white", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden"
-  },
-  detailHeader: {
-    padding: "12px 14px",
+  sectionHeader: {
+    padding: "10px 12px",
+    background: "#f9fafb",
     borderBottom: "1px solid #e5e7eb",
+    fontWeight: 600,
+    color: "#374151",
+  },
+
+  fieldLabel: { fontSize: 12, color: "#6b7280", marginBottom: 6 },
+  readonlyBox: {
+    padding: 10,
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    background: "white",
+    color: "#111827",
+    fontSize: 13,
+  },
+  videoBox: {
+    height: 220,
+    display: "grid",
+    placeItems: "center",
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    background: "black",
+    color: "white",
+    fontSize: 13,
+  },
+
+  toolbar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "8px 10px",
+    border: "1px solid #e5e7eb",
+    borderBottom: "none",
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    background: "#fafafa",
+  },
+  tool: { color: "#4b5563", fontSize: 12 },
+  editor: {
+    width: "100%",
+    border: "1px solid #e5e7eb",
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+    padding: 10,
+    fontSize: 13,
+    minHeight: 160,
+  },
+
+  attr: { borderBottom: "1px solid #f1f5f9", padding: "10px 0" },
+  attrLabel: { fontWeight: 600, color: "#111827" },
+  attrHint: { fontSize: 12, color: "#6b7280", marginBottom: 6 },
+  select: {
+    height: 34,
+    border: "1px solid #d1d5db",
+    borderRadius: 6,
+    padding: "0 10px",
+    fontSize: 13,
+    background: "white",
+  },
+
+  /* Modals */
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(17,24,39,0.35)",
+    display: "grid",
+    placeItems: "center",
+    padding: 16,
+    zIndex: 50,
+  },
+
+  modal: {
+    width: 820,
+    maxWidth: "96vw",
+    maxHeight: "90vh",
+    background: "white",
+    borderRadius: 10,
+    boxShadow: "0 16px 40px rgba(0,0,0,0.25)",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+
+  modalSmall: {
+    width: 420,
+    maxWidth: "96vw",
+    background: "white",
+    borderRadius: 10,
+    boxShadow: "0 16px 40px rgba(0,0,0,0.25)",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+
+  modalHeader: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    background: "#fafafa"
+    padding: "12px 16px",
+    borderBottom: "1px solid #e5e7eb",
+    background: "#f9fafb",
+    flex: "0 0 auto",
   },
-  detailTitle: { fontWeight: 700, color: "#111827" },
-  detailMeta: { fontSize: 12, color: "#4b5563", marginTop: 2 },
 
-  section: { padding: 12, borderTop: "1px solid #f3f4f6" },
-  sectionLabel: { fontSize: 12, color: "#6b7280", marginBottom: 6, fontWeight: 600 },
+  modalBody: {
+    padding: 16,
+    overflowY: "auto",
+    flex: "1 1 auto",
+    minHeight: 0,
+    WebkitOverflowScrolling: "touch",
+  },
 
-  barOuter: { height: 10, width: 180, background: "#f3f4f6", borderRadius: 999, overflow: "hidden", border: "1px solid #e5e7eb" },
-  barInner: { height: "100%", background: "#6d28d9" },
-  scoreText: { fontSize: 12, color: "#374151" },
+  group: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    background: "#fafafa",
+  },
+  legend: { fontSize: 12, color: "#6b7280", padding: "0 6px" },
 
-  reactGrid: { display: "grid", gap: 8 },
-  reactRow: {
+  radioCol: { display: "grid", gap: 8 },
+  radioRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    color: "#374151",
+    fontSize: 13,
+  },
+
+  field: { display: "flex", flexDirection: "column", gap: 6 },
+  label: { fontSize: 12, color: "#6b7280" },
+  textarea: {
+    border: "1px solid #d1d5db",
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 13,
+    resize: "vertical",
+  },
+  hint: { textAlign: "right", fontSize: 11, color: "#9ca3af", marginTop: 4 },
+
+  modalActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 12,
+  },
+  iconBtn: {
+    height: 30,
+    width: 30,
+    border: "1px solid #e5e7eb",
+    borderRadius: 6,
+    background: "white",
+    display: "grid",
+    placeItems: "center",
+  },
+
+  /* NPS + feature rows */
+  npsRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(11, 1fr)",
+    gap: 6,
+  },
+  npsBtn: {
+    height: 34,
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    background: "white",
+    fontSize: 13,
+    color: "#374151",
+  },
+  npsBtnActive: {
+    borderColor: "#6d28d9",
+    boxShadow: "0 0 0 2px #ede9fe inset",
+    color: "#6d28d9",
+    fontWeight: 700,
+  },
+  npsHintRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginTop: 6,
+  },
+  npsHintLeft: { fontSize: 11, color: "#9ca3af" },
+  npsHintRight: { fontSize: 11, color: "#9ca3af" },
+
+  featureRow: {
     display: "grid",
     gridTemplateColumns: "1fr auto",
     alignItems: "center",
-    padding: "6px 8px",
+    gap: 8,
+  },
+  featureLabel: { fontSize: 13, color: "#111827", fontWeight: 600 },
+  thumbs: { display: "inline-flex", gap: 6 },
+  thumbBtn: {
+    height: 30,
+    minWidth: 42,
     border: "1px solid #e5e7eb",
     borderRadius: 8,
-    background: "#fff"
+    background: "white",
+    fontSize: 14,
+    lineHeight: "28px",
+    cursor: "pointer",
+  },
+  thumbActiveUp: {
+    borderColor: "#10b981",
+    boxShadow: "0 0 0 2px #d1fae5 inset",
+    color: "#065f46",
+    fontWeight: 700,
+  },
+  thumbActiveDown: {
+    borderColor: "#ef4444",
+    boxShadow: "0 0 0 2px #fee2e2 inset",
+    color: "#7f1d1d",
+    fontWeight: 700,
   },
 
-  commentBox: {
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    padding: 10,
-    background: "#fff",
-    color: "#111827",
-    minHeight: 48
-  },
+  sectionSub: { fontSize: 12, color: "#6b7280", marginTop: 2 },
 };
+
+/* ---------------- Icons ---------------- */
+
+function CloseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+      <path
+        d="M5 5l10 10M15 5L5 15"
+        stroke="#6b7280"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}

@@ -7,7 +7,7 @@ const WORKFLOWS = [
   {
     id: "wf_chem_maker",
     project: "TextbookQnAProject",
-    workflow: "Chemistry • Maker",
+    workflow: "Chemistry",
     entries: [
       {
         id: "chem-1",
@@ -231,7 +231,7 @@ export default function Sample7() {
         <div style={sx.body}>
           <div style={sx.controlsRow}>
             <label style={sx.field}>
-              <span style={sx.label}>Project</span>
+              <span style={sx.label}>Project Nickname</span>
               <select
                 value={project}
                 onChange={(e) => {
