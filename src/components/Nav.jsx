@@ -18,9 +18,7 @@ export default function Nav() {
       borderBottom: "1px solid #e5e7eb"
     }}>
       <Link to="/" style={{ textDecoration: "none", fontWeight: 700 }}>Home</Link>
-       <NavLink to="/sample3" style={linkStyle}>Main Screen Feedback (3)</NavLink>
-                     <NavLink to="/sample6" style={linkStyle}>Submit Button Feedback (6)</NavLink>
-       <NavLink to="/sample1" style={linkStyle}>Post Submit Feedback (1)</NavLink>
+                     <NavLink to="/sample6" style={linkStyle}>Submit/Skip Button Feedback (6)</NavLink>
 
      
      

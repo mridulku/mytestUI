@@ -4,12 +4,9 @@ export default function Home() {
   const links = [
 
     { to: "/sample2", label: "Configure Feedback" },
-    { to: "/sample3", label: "Main Screen General Feedback" },
-    { to: "/sample4", label: "Per Task Feedback" },
 
      { to: "/sample6", label: "Submit Button Feedback" },
           { to: "/sample7", label: "Product Dashboard" },
-                    { to: "/sample8", label: "Configure 2" },
   ];
 
   return (
