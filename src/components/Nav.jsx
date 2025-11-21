@@ -24,7 +24,7 @@ export default function Nav() {
      
       <NavLink to="/sample2" style={linkStyle}>Configure Feedback (2)</NavLink>
      
-         <NavLink to="/sample7" style={linkStyle}>Product Dashboard (7)</NavLink>
+         <NavLink to="/sample7" style={linkStyle}>Dashboard (7)</NavLink>
    
   
     </nav>

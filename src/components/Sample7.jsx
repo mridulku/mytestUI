@@ -1,4 +1,4 @@
-// Sample7.jsx — Product Dashboard with Workflow Feedback + Overall FTS Feedback
+// Sample7.jsx — Unified Contributor Feedback Dashboard with Filters + CSAT 0–10
 import { useMemo, useState } from "react";
 
 /* ----------------------------- Stub Data ----------------------------- */
@@ -12,8 +12,14 @@ const WORKFLOWS = [
       {
         id: "chem-1",
         user: "A-1023",
-        score: 4,
-        aspects: { instructions: "down", reviewer: "up", tool: "up", ui: "up" },
+        score: 8, // CSAT 0–10
+        aspects: {
+          instructions: "down",
+          reviewer: "up",
+          tool: "up",
+          ui: "up",
+          payment: "up",
+        },
         comment: "Shortcuts are great; occasional upload lag.",
         device: "Chrome • Win",
         updatedAt: "2h ago",
@@ -21,8 +27,14 @@ const WORKFLOWS = [
       {
         id: "chem-2",
         user: "A-1044",
-        score: 5,
-        aspects: { instructions: "up", reviewer: "up", tool: "up", ui: "up" },
+        score: 10,
+        aspects: {
+          instructions: "up",
+          reviewer: "up",
+          tool: "up",
+          ui: "up",
+          payment: "up",
+        },
         comment: "Examples very clear.",
         device: "Safari • iOS",
         updatedAt: "yesterday",
@@ -30,8 +42,14 @@ const WORKFLOWS = [
       {
         id: "chem-3",
         user: "B-2099",
-        score: 3,
-        aspects: { instructions: "down", reviewer: "up", tool: "down", ui: "down" },
+        score: 6,
+        aspects: {
+          instructions: "down",
+          reviewer: "up",
+          tool: "down",
+          ui: "down",
+          payment: "down",
+        },
         comment: "Guidelines conflict with edge cases.",
         device: "Edge • Win",
         updatedAt: "3d ago",
@@ -46,8 +64,14 @@ const WORKFLOWS = [
       {
         id: "tr-1",
         user: "C-6677",
-        score: 4,
-        aspects: { instructions: "up", reviewer: "down", tool: "up", ui: "up" },
+        score: 8,
+        aspects: {
+          instructions: "up",
+          reviewer: "down",
+          tool: "up",
+          ui: "up",
+          payment: "up",
+        },
         comment: "Reviewer notes feel inconsistent.",
         device: "Chrome • Mac",
         updatedAt: "5h ago",
@@ -62,8 +86,14 @@ const WORKFLOWS = [
       {
         id: "vis-1",
         user: "D-3001",
-        score: 2,
-        aspects: { instructions: "down", reviewer: "down", tool: "down", ui: "down" },
+        score: 4,
+        aspects: {
+          instructions: "down",
+          reviewer: "down",
+          tool: "down",
+          ui: "down",
+          payment: "down",
+        },
         comment: "Tool lag + unclear rejection reasons.",
         device: "Firefox • Linux",
         updatedAt: "1h ago",
@@ -71,8 +101,14 @@ const WORKFLOWS = [
       {
         id: "vis-2",
         user: "D-3002",
-        score: 3,
-        aspects: { instructions: "down", reviewer: "up", tool: "down", ui: "up" },
+        score: 6,
+        aspects: {
+          instructions: "down",
+          reviewer: "up",
+          tool: "down",
+          ui: "up",
+          payment: "down",
+        },
         comment: "Review helpful, but editor freezes.",
         device: "Chrome • Win",
         updatedAt: "today",
@@ -85,8 +121,14 @@ const PLATFORM_ANSWERS = [
   {
     id: "fts-1",
     user: "A-1023",
-    score: 4,
-    aspects: { instructions: "up", reviewer: "up", tool: "up", ui: "up" },
+    score: 8,
+    aspects: {
+      instructions: "up",
+      reviewer: "up",
+      tool: "up",
+      ui: "up",
+      payment: "up",
+    },
     comment: "Good speed this week.",
     device: "Chrome • Win",
     updatedAt: "2h ago",
@@ -94,8 +136,14 @@ const PLATFORM_ANSWERS = [
   {
     id: "fts-2",
     user: "B-2099",
-    score: 3,
-    aspects: { instructions: "down", reviewer: "up", tool: "down", ui: "down" },
+    score: 6,
+    aspects: {
+      instructions: "down",
+      reviewer: "up",
+      tool: "down",
+      ui: "down",
+      payment: "down",
+    },
     comment: "Uploads flaky on hotel Wi-Fi.",
     device: "Edge • Win",
     updatedAt: "yesterday",
@@ -103,8 +151,14 @@ const PLATFORM_ANSWERS = [
   {
     id: "fts-3",
     user: "C-6677",
-    score: 5,
-    aspects: { instructions: "up", reviewer: "up", tool: "up", ui: "up" },
+    score: 10,
+    aspects: {
+      instructions: "up",
+      reviewer: "up",
+      tool: "up",
+      ui: "up",
+      payment: "up",
+    },
     comment: "Everything feels smooth.",
     device: "Chrome • Mac",
     updatedAt: "3d ago",
@@ -112,8 +166,14 @@ const PLATFORM_ANSWERS = [
   {
     id: "fts-4",
     user: "D-3001",
-    score: 2,
-    aspects: { instructions: "down", reviewer: "down", tool: "down", ui: "down" },
+    score: 4,
+    aspects: {
+      instructions: "down",
+      reviewer: "down",
+      tool: "down",
+      ui: "down",
+      payment: "down",
+    },
     comment: "Review loop confusing; editor lags.",
     device: "Firefox • Linux",
     updatedAt: "5h ago",
@@ -123,13 +183,22 @@ const PLATFORM_ANSWERS = [
 /* ----------------------------- Helpers ----------------------------- */
 
 const ASPECT_LABELS = {
-  instructions: "Instructions",
-  reviewer: "Reviewer",
-  tool: "Tool performance",
-  ui: "UI / Layout",
+  instructions: "Guidelines",
+  reviewer: "Reviewer decisions",
+  tool: "User Interface",
+  ui: "Workload per task",
+  payment: "Payment",
 };
 
-function mapEntryToViewer(entry) {
+const ALL_ASPECT_NAMES = [
+  "Guidelines",
+  "Reviewer decisions",
+  "User Interface",
+  "Workload per task",
+  "Payment",
+];
+
+function mapEntryToViewer(entry, projectName, workflowName, sourceType) {
   const reactions = {};
   for (const [k, v] of Object.entries(entry.aspects || {})) {
     const label = ASPECT_LABELS[k] || k;
@@ -143,23 +212,109 @@ function mapEntryToViewer(entry) {
     comment: entry.comment,
     device: entry.device,
     updatedAt: entry.updatedAt,
+    project: projectName,
+    workflow: workflowName,
+    source: sourceType, // 'workflow' | 'platform'
   };
 }
 
-function avg(arr) {
-  return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : NaN;
+function toneForScore(v) {
+  // CSAT 0–10 scale
+  if (v >= 8) return "good";
+  if (v >= 6) return "ok";
+  return "poor";
 }
 
-function toneForScore(v) {
-  if (v >= 4.3) return "good";
-  if (v >= 3.5) return "ok";
-  return "poor";
+const DEFAULT_FILTERS = {
+  scores: [], // e.g. [6,7,8]
+  comments: "all", // 'all' | 'with' | 'without'
+  aspects: ALL_ASPECT_NAMES.reduce((acc, name) => {
+    acc[name] = { up: false, down: false };
+    return acc;
+  }, {}),
+  timePreset: "all", // 'all' | '7d' | '30d' | '90d'
+};
+
+function hasActiveFilters(filters) {
+  if (filters.scores.length > 0) return true;
+  if (filters.comments !== "all") return true;
+  if (filters.timePreset !== "all") return true;
+  for (const val of Object.values(filters.aspects)) {
+    if (val.up || val.down) return true;
+  }
+  return false;
+}
+
+// ultra-rough parsing of "2h ago", "3d ago", "yesterday", "today"
+function hoursFromNowLabel(label) {
+  if (!label) return Infinity;
+  const s = String(label).toLowerCase().trim();
+  if (s.endsWith("h ago")) {
+    const n = parseInt(s, 10);
+    return Number.isNaN(n) ? Infinity : n;
+  }
+  if (s.endsWith("d ago")) {
+    const n = parseInt(s, 10);
+    return Number.isNaN(n) ? Infinity : n * 24;
+  }
+  if (s === "today") return 12;
+  if (s === "yesterday") return 36;
+  return Infinity;
+}
+
+function withinTimePreset(entry, preset) {
+  if (preset === "all") return true;
+  const h = hoursFromNowLabel(entry.updatedAt);
+  if (!Number.isFinite(h)) return true; // stub data fallback
+  if (preset === "7d") return h <= 7 * 24;
+  if (preset === "30d") return h <= 30 * 24;
+  if (preset === "90d") return h <= 90 * 24;
+  return true;
+}
+
+function applyFilters(entries, filters) {
+  return entries.filter((r) => {
+    // score filter
+    if (filters.scores.length > 0) {
+      const s = Math.round(r.score);
+      if (!filters.scores.includes(s)) return false;
+    }
+
+    // comment filter
+    const hasComment = !!(r.comment && r.comment.trim().length);
+    if (filters.comments === "with" && !hasComment) return false;
+    if (filters.comments === "without" && hasComment) return false;
+
+    // aspects (reactions) filter
+    for (const [aspect, conf] of Object.entries(filters.aspects)) {
+      if (!conf.up && !conf.down) continue; // not constraining
+      const val = r.reactions?.[aspect];
+      if (conf.up && conf.down) {
+        // need some reaction present
+        if (val !== "up" && val !== "down") return false;
+      } else if (conf.up) {
+        if (val !== "up") return false;
+      } else if (conf.down) {
+        if (val !== "down") return false;
+      }
+    }
+
+    // time filter (rough)
+    if (!withinTimePreset(r, filters.timePreset)) return false;
+
+    return true;
+  });
 }
 
 /* ----------------------------- Main Component ----------------------------- */
 
 export default function Sample7() {
-  const [tab, setTab] = useState("workflow"); // 'workflow' | 'platform'
+  const [feedbackSource, setFeedbackSource] = useState("workflow"); // 'all' | 'workflow'
+
+  // Filters live at the top level
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersActive = hasActiveFilters(filters);
 
   // Projects from workflow data
   const projects = useMemo(() => {
@@ -189,17 +344,39 @@ export default function Sample7() {
 
   const workflowEntries = useMemo(() => {
     if (!selectedWorkflow) return [];
-    return selectedWorkflow.entries.map(mapEntryToViewer);
+    return selectedWorkflow.entries.map((entry) =>
+      mapEntryToViewer(
+        entry,
+        selectedWorkflow.project,
+        selectedWorkflow.workflow,
+        "workflow"
+      )
+    );
   }, [selectedWorkflow]);
 
   const platformEntries = useMemo(
-    () => PLATFORM_ANSWERS.map(mapEntryToViewer),
+    () =>
+      PLATFORM_ANSWERS.map((entry) =>
+        mapEntryToViewer(entry, "Overall FTS", "Platform", "platform")
+      ),
     []
   );
 
-  const workflowTitle = selectedWorkflow
-    ? `${selectedWorkflow.project} • ${selectedWorkflow.workflow}`
-    : "No workflow selected";
+  const combinedEntries = useMemo(() => {
+    if (feedbackSource === "workflow") return workflowEntries;
+    // "all" = workflow slice + overall FTS slice
+    return [...workflowEntries, ...platformEntries];
+  }, [feedbackSource, workflowEntries, platformEntries]);
+
+  const subtitle = useMemo(() => {
+    if (feedbackSource === "workflow") {
+      const wfTitle = selectedWorkflow
+        ? `${selectedWorkflow.project} • ${selectedWorkflow.workflow}`
+        : "No workflow selected";
+      return `Workflow-specific feedback — ${wfTitle}`;
+    }
+    return "All feedback";
+  }, [feedbackSource, selectedWorkflow]);
 
   return (
     <section style={sx.page}>
@@ -209,106 +386,129 @@ export default function Sample7() {
           <span style={sx.brandMark} />
           <span style={sx.brandText}>FT Studio — Contributor Feedback</span>
         </div>
-        <div style={{ flex: 1 }} />
-        <nav style={sx.tabs}>
-          <button
-            style={{ ...sx.tab, ...(tab === "workflow" ? sx.tabActive : null) }}
-            onClick={() => setTab("workflow")}
-          >
-            Workflow Feedback
-          </button>
-          <button
-            style={{ ...sx.tab, ...(tab === "platform" ? sx.tabActive : null) }}
-            onClick={() => setTab("platform")}
-          >
-            Overall FTS Feedback
-          </button>
-        </nav>
       </header>
 
-      {/* Workflow Feedback Tab */}
-      {tab === "workflow" && (
-        <div style={sx.body}>
-          <div style={sx.controlsRow}>
-            <label style={sx.field}>
-              <span style={sx.label}>Project Nickname</span>
-              <select
-                value={project}
-                onChange={(e) => {
-                  setProject(e.target.value);
-                  // workflowId will be realigned by selectedWorkflow memo
-                }}
-                style={sx.select}
-              >
-                {projects.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
+      <div style={sx.body}>
+        {/* Controls row */}
+        <div style={sx.controlsRow}>
+          <label style={sx.field}>
+            <span style={sx.label}>Feedback source</span>
+            <select
+              value={feedbackSource}
+              onChange={(e) => setFeedbackSource(e.target.value)}
+              style={sx.select}
+            >
+              <option value="all">All feedback</option>
+              <option value="workflow">Workflow feedback</option>
+            </select>
+          </label>
 
-            <label style={sx.field}>
-              <span style={sx.label}>Workflow</span>
-              <select
-                value={selectedWorkflow?.id || ""}
-                onChange={(e) => setWorkflowId(e.target.value)}
-                style={sx.select}
-              >
-                {workflowsForProject.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.workflow}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          {feedbackSource === "workflow" && (
+            <>
+              <label style={sx.field}>
+                <span style={sx.label}>Project Nickname</span>
+                {/* Searchable + pickable via datalist */}
+                <input
+                  list="project-options"
+                  value={project}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setProject(next);
+                    const wfForProject = WORKFLOWS.filter(
+                      (w) => w.project === next
+                    );
+                    if (wfForProject.length > 0) {
+                      setWorkflowId(wfForProject[0].id);
+                    }
+                  }}
+                  style={sx.input}
+                  placeholder="Start typing to search…"
+                />
+                <datalist id="project-options">
+                  {projects.map((p) => (
+                    <option key={p} value={p} />
+                  ))}
+                </datalist>
+              </label>
 
-          <div style={sx.sectionHeader}>
-            <span style={sx.sectionTitle}>Workflow Feedback</span>
-            <span style={sx.sectionSubtitle}>{workflowTitle}</span>
-          </div>
-
-          {workflowEntries.length === 0 ? (
-            <div style={sx.emptyCard}>No answered feedback for this workflow yet.</div>
-          ) : (
-            <FeedbackViewer entries={workflowEntries} />
+              <label style={sx.field}>
+                <span style={sx.label}>Workflow</span>
+                <select
+                  value={selectedWorkflow?.id || ""}
+                  onChange={(e) => setWorkflowId(e.target.value)}
+                  style={sx.select}
+                >
+                  {workflowsForProject.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.workflow}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
           )}
-        </div>
-      )}
 
-      {/* Overall Platform Feedback Tab */}
-      {tab === "platform" && (
-        <div style={sx.body}>
-          <div style={sx.sectionHeader}>
-            <span style={sx.sectionTitle}>Overall FTS Feedback</span>
-            <span style={sx.sectionSubtitle}>
-              Aggregated feedback across all projects/workflows
-            </span>
+          <div style={{ flex: 1 }} />
+
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(true)}
+            style={{
+              ...sx.filterBtn,
+              ...(filtersActive ? sx.filterBtnActive : null),
+            }}
+          >
+            <FilterIcon />
+            <span>Filters</span>
+            {filtersActive && <span style={sx.filterDot} />}
+          </button>
+        </div>
+
+        <div style={sx.sectionHeader}>
+          <span style={sx.sectionTitle}>Contributor Feedback</span>
+          <span style={sx.sectionSubtitle}>{subtitle}</span>
+        </div>
+
+        {combinedEntries.length === 0 ? (
+          <div style={sx.emptyCard}>
+            No feedback records match the current selection.
           </div>
-
-          {platformEntries.length === 0 ? (
-            <div style={sx.emptyCard}>No platform feedback recorded yet.</div>
-          ) : (
-            <FeedbackViewer entries={platformEntries} />
-          )}
-        </div>
-      )}
+        ) : (
+          <FeedbackViewer
+            entries={combinedEntries}
+            filters={filters}
+            onFiltersChange={setFilters}
+            filtersOpen={filtersOpen}
+            onCloseFilters={() => setFiltersOpen(false)}
+          />
+        )}
+      </div>
     </section>
   );
 }
 
 /* ----------------------------- Shared Feedback Viewer ----------------------------- */
 
-function FeedbackViewer({ entries }) {
+function FeedbackViewer({
+  entries,
+  filters,
+  onFiltersChange,
+  filtersOpen,
+  onCloseFilters,
+}) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(null);
 
+  const filteredEntries = useMemo(
+    () => applyFilters(entries, filters),
+    [entries, filters]
+  );
+
   const answeredRows = useMemo(() => {
-    return entries.filter((r) =>
+    return filteredEntries.filter((r) =>
       r.user.toLowerCase().includes(query.toLowerCase())
     );
-  }, [entries, query]);
+  }, [filteredEntries, query]);
 
   const sel = useMemo(() => {
     const byId = answeredRows.find((r) => r.id === selectedId);
@@ -316,19 +516,19 @@ function FeedbackViewer({ entries }) {
   }, [answeredRows, selectedId]);
 
   const metrics = useMemo(() => {
-    const totalAnswered = entries.length;
-    const scores = entries
+    const totalAnswered = filteredEntries.length;
+    const scores = filteredEntries
       .filter((r) => typeof r.score === "number")
       .map((r) => r.score);
     const avgScore = scores.length
-      ? `${(scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)} / 5`
+      ? `${(scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)} / 10`
       : "—";
     return { totalAnswered, avgScore };
-  }, [entries]);
+  }, [filteredEntries]);
 
   const aspectSummary = useMemo(() => {
     const counts = {}; // { aspect: { up, down } }
-    for (const r of entries) {
+    for (const r of filteredEntries) {
       if (!r.reactions) continue;
       for (const [aspect, val] of Object.entries(r.reactions)) {
         if (!counts[aspect]) counts[aspect] = { up: 0, down: 0 };
@@ -336,12 +536,7 @@ function FeedbackViewer({ entries }) {
         if (val === "down") counts[aspect].down += 1;
       }
     }
-    const order = [
-      "Instructions",
-      "Reviewer",
-      "Tool performance",
-      "UI / Layout",
-    ];
+    const order = ALL_ASPECT_NAMES;
     const keys = Array.from(new Set([...order, ...Object.keys(counts)]));
     return keys
       .map((k) => {
@@ -353,14 +548,16 @@ function FeedbackViewer({ entries }) {
         return { aspect: k, up, down, total, upPct, downPct };
       })
       .filter((row) => row.total > 0);
-  }, [entries]);
+  }, [filteredEntries]);
+
+  const active = hasActiveFilters(filters);
 
   return (
     <section style={sx.viewer}>
       {/* Top tiles */}
       <div style={sx.tilesRow}>
         <Tile label="Total Answered" value={metrics.totalAnswered} />
-        <Tile label="Avg Score" value={metrics.avgScore} />
+        <Tile label="Avg CSAT" value={metrics.avgScore} />
       </div>
 
       {/* Aspect summary (one line per aspect) */}
@@ -400,25 +597,31 @@ function FeedbackViewer({ entries }) {
       <div style={sx.bodyGrid}>
         {/* Left list */}
         <aside style={sx.left}>
-          <div style={sx.searchRow}>
+          <div style={sx.leftHeaderRow}>
             <input
-              placeholder="Search contributor…"
+              placeholder="Search contributor by ID…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               style={sx.input}
             />
           </div>
 
+          {active && (
+            <div style={sx.filterHint}>
+              Filters applied – {metrics.totalAnswered} records in view
+            </div>
+          )}
+
           <div style={sx.list}>
             {answeredRows.map((r) => {
-              const active = r.id === sel?.id;
+              const activeRow = r.id === sel?.id;
               return (
                 <button
                   key={r.id}
                   onClick={() => setSelectedId(r.id)}
                   style={{
                     ...sx.rowBtnList,
-                    ...(active ? sx.rowBtnActive : null),
+                    ...(activeRow ? sx.rowBtnActive : null),
                   }}
                 >
                   <div style={sx.userLine}>
@@ -428,13 +631,18 @@ function FeedbackViewer({ entries }) {
                     </Badge>
                   </div>
                   <div style={sx.subtle}>
-                    {r.device || "—"} {r.updatedAt ? `• ${r.updatedAt}` : ""}
+                    {r.project && r.workflow
+                      ? `${r.project} • ${r.workflow}`
+                      : "Overall FTS"}
+                    {r.updatedAt ? ` • ${r.updatedAt}` : ""}
                   </div>
                 </button>
               );
             })}
             {answeredRows.length === 0 && (
-              <div style={sx.empty}>No answered surveys match your search.</div>
+              <div style={sx.empty}>
+                No answered surveys match your search and filters.
+              </div>
             )}
           </div>
         </aside>
@@ -451,16 +659,17 @@ function FeedbackViewer({ entries }) {
                 <div>
                   <div style={sx.detailTitle}>{sel.user}</div>
                   <div style={sx.detailMeta}>
-                    {sel.device || "—"}
-                    {sel.updatedAt ? <> • {sel.updatedAt}</> : null}
+                    {sel.project && sel.workflow
+                      ? `${sel.project} • ${sel.workflow}`
+                      : "Overall FTS"}
+                    {sel.updatedAt ? ` • ${sel.updatedAt}` : ""}
                   </div>
                 </div>
-                <Tag tone="ok">Answered</Tag>
               </div>
 
               <div style={sx.section}>
-                <div style={sx.sectionLabel}>Recommendation score</div>
-                <ScoreBar value={sel.score} max={5} />
+                <div style={sx.sectionLabel}>CSAT score (0–10)</div>
+                <ScoreBar value={sel.score} />
               </div>
 
               <div style={sx.section}>
@@ -482,7 +691,272 @@ function FeedbackViewer({ entries }) {
           )}
         </main>
       </div>
+
+      {filtersOpen && (
+        <FiltersModal
+          value={filters}
+          onChange={onFiltersChange}
+          onClose={onCloseFilters}
+        />
+      )}
     </section>
+  );
+}
+
+/* ----------------------------- Filter Modal ----------------------------- */
+
+function FiltersModal({ value, onChange, onClose }) {
+  const [local, setLocal] = useState(value);
+
+  const toggleScore = (score) => {
+    setLocal((prev) => {
+      const has = prev.scores.includes(score);
+      return {
+        ...prev,
+        scores: has
+          ? prev.scores.filter((s) => s !== score)
+          : [...prev.scores, score],
+      };
+    });
+  };
+
+  const toggleAspect = (aspect, field) => {
+    setLocal((prev) => ({
+      ...prev,
+      aspects: {
+        ...prev.aspects,
+        [aspect]: {
+          ...prev.aspects[aspect],
+          [field]: !prev.aspects[aspect][field],
+        },
+      },
+    }));
+  };
+
+  const apply = () => {
+    onChange(local);
+    onClose();
+  };
+
+  const reset = () => {
+    setLocal(DEFAULT_FILTERS);
+  };
+
+  return (
+    <div style={sx.modalOverlay} role="dialog" aria-modal="true">
+      <div style={sx.modal}>
+        <div style={sx.modalHeader}>
+          <div style={{ fontWeight: 600, color: "#111827" }}>
+            Filter feedback
+          </div>
+          <button onClick={onClose} style={sx.iconBtn} aria-label="close">
+            <CloseIcon />
+          </button>
+        </div>
+
+        <div style={sx.modalBody}>
+          <div style={sx.filterGrid}>
+            {/* Scores */}
+            <div style={sx.filterSection}>
+              <div style={sx.filterTitle}>CSAT scores</div>
+              <div style={sx.filterSub}>
+                Choose one or more overall CSAT scores (0–10).
+              </div>
+              <div style={sx.scoreChipsRow}>
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((s) => {
+                  const active = local.scores.includes(s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => toggleScore(s)}
+                      style={{
+                        ...sx.scoreChip,
+                        ...(active ? sx.scoreChipActive : null),
+                      }}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Comments */}
+            <div style={sx.filterSection}>
+              <div style={sx.filterTitle}>Comments</div>
+              <div style={sx.filterSub}>
+                Filter by presence of free-text comments.
+              </div>
+              <div style={sx.radioCol}>
+                <label style={sx.radioRow}>
+                  <input
+                    type="radio"
+                    name="comments"
+                    value="all"
+                    checked={local.comments === "all"}
+                    onChange={(e) =>
+                      setLocal((prev) => ({ ...prev, comments: e.target.value }))
+                    }
+                  />
+                  <span>All responses</span>
+                </label>
+                <label style={sx.radioRow}>
+                  <input
+                    type="radio"
+                    name="comments"
+                    value="with"
+                    checked={local.comments === "with"}
+                    onChange={(e) =>
+                      setLocal((prev) => ({ ...prev, comments: e.target.value }))
+                    }
+                  />
+                  <span>With comments only</span>
+                </label>
+                <label style={sx.radioRow}>
+                  <input
+                    type="radio"
+                    name="comments"
+                    value="without"
+                    checked={local.comments === "without"}
+                    onChange={(e) =>
+                      setLocal((prev) => ({ ...prev, comments: e.target.value }))
+                    }
+                  />
+                  <span>Without comments only</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Aspects */}
+            <div style={sx.filterSection}>
+              <div style={sx.filterTitle}>Quick reactions</div>
+              <div style={sx.filterSub}>
+                Filter by thumbs up / down on specific aspects.
+              </div>
+              <div style={sx.aspectFilterGrid}>
+                {ALL_ASPECT_NAMES.map((aspect) => {
+                  const conf = local.aspects[aspect] || {
+                    up: false,
+                    down: false,
+                  };
+                  return (
+                    <div key={aspect} style={sx.aspectFilterRow}>
+                      <div style={sx.aspectFilterLabel}>{aspect}</div>
+                      <div style={sx.aspectFilterControls}>
+                        <button
+                          type="button"
+                          onClick={() => toggleAspect(aspect, "up")}
+                          style={{
+                            ...sx.aspectChip,
+                            ...(conf.up ? sx.aspectChipActiveUp : null),
+                          }}
+                        >
+                          👍
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleAspect(aspect, "down")}
+                          style={{
+                            ...sx.aspectChip,
+                            ...(conf.down ? sx.aspectChipActiveDown : null),
+                          }}
+                        >
+                          👎
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Time window (stubbed against labels) */}
+            <div style={sx.filterSection}>
+              <div style={sx.filterTitle}>Time window</div>
+              <div style={sx.filterSub}>
+                Approximate filters based on “2h ago”, “3d ago”, “yesterday”, etc.
+              </div>
+              <div style={sx.radioCol}>
+                <label style={sx.radioRow}>
+                  <input
+                    type="radio"
+                    name="timePreset"
+                    value="all"
+                    checked={local.timePreset === "all"}
+                    onChange={(e) =>
+                      setLocal((prev) => ({
+                        ...prev,
+                        timePreset: e.target.value,
+                      }))
+                    }
+                  />
+                  <span>All time</span>
+                </label>
+                <label style={sx.radioRow}>
+                  <input
+                    type="radio"
+                    name="timePreset"
+                    value="7d"
+                    checked={local.timePreset === "7d"}
+                    onChange={(e) =>
+                      setLocal((prev) => ({
+                        ...prev,
+                        timePreset: e.target.value,
+                      }))
+                    }
+                  />
+                  <span>Last 7 days</span>
+                </label>
+                <label style={sx.radioRow}>
+                  <input
+                    type="radio"
+                    name="timePreset"
+                    value="30d"
+                    checked={local.timePreset === "30d"}
+                    onChange={(e) =>
+                      setLocal((prev) => ({
+                        ...prev,
+                        timePreset: e.target.value,
+                      }))
+                    }
+                  />
+                  <span>Last 30 days</span>
+                </label>
+                <label style={sx.radioRow}>
+                  <input
+                    type="radio"
+                    name="timePreset"
+                    value="90d"
+                    checked={local.timePreset === "90d"}
+                    onChange={(e) =>
+                      setLocal((prev) => ({
+                        ...prev,
+                        timePreset: e.target.value,
+                      }))
+                    }
+                  />
+                  <span>Last 90 days</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={sx.modalActionsRow}>
+          <button style={sx.tertiaryBtn} onClick={reset}>
+            Reset
+          </button>
+          <div style={{ flex: 1 }} />
+          <button style={sx.tertiaryBtn} onClick={onClose}>
+            Cancel
+          </button>
+          <button style={sx.primaryBtn} onClick={apply}>
+            Apply filters
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -524,7 +998,9 @@ function Tag({ children, tone = "muted" }) {
       color: "#6b7280",
     },
   };
-  return <span style={{ ...styles.base, ...(styles[tone] || {}) }}>{children}</span>;
+  return (
+    <span style={{ ...styles.base, ...(styles[tone] || {}) }}>{children}</span>
+  );
 }
 
 function Badge({ tone, children }) {
@@ -550,8 +1026,9 @@ function Badge({ tone, children }) {
   );
 }
 
-function ScoreBar({ value, max = 5 }) {
-  if (typeof value !== "number") return <span style={sx.subtle}>No response</span>;
+function ScoreBar({ value, max = 10 }) {
+  if (typeof value !== "number")
+    return <span style={sx.subtle}>No response</span>;
   const pct = Math.max(0, Math.min(1, value / max));
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -604,6 +1081,39 @@ function ThumbDown() {
   );
 }
 
+function FilterIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M3 4h14l-5.5 6.3v3.7l-3 2v-5.7L3 4z"
+        stroke="#4b5563"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+      <path
+        d="M5 5l10 10M15 5L5 15"
+        stroke="#6b7280"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 /* ----------------------------- Styles ----------------------------- */
 
 const sx = {
@@ -624,20 +1134,6 @@ const sx = {
   brand: { display: "flex", alignItems: "center", gap: 8 },
   brandMark: { width: 14, height: 14, borderRadius: 3, background: "#34d399" },
   brandText: { fontWeight: 700, color: "#111827" },
-  tabs: { display: "flex", gap: 8 },
-  tab: {
-    border: "1px solid #e5e7eb",
-    background: "#fff",
-    borderRadius: 8,
-    padding: "6px 10px",
-    fontSize: 12,
-    color: "#374151",
-  },
-  tabActive: {
-    borderColor: "#6d28d9",
-    color: "#6d28d9",
-    background: "#f5f3ff",
-  },
 
   body: {
     maxWidth: 1100,
@@ -662,6 +1158,41 @@ const sx = {
     padding: "0 10px",
     background: "#fff",
     color: "#111827",
+    fontSize: 13,
+  },
+  input: {
+    height: 34,
+    border: "1px solid #d1d5db",
+    borderRadius: 8,
+    padding: "0 10px",
+    background: "#fff",
+    color: "#111827",
+    fontSize: 13,
+  },
+
+  filterBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    padding: "4px 10px",
+    fontSize: 11,
+    color: "#4b5563",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  filterBtnActive: {
+    borderColor: "#6d28d9",
+    background: "#f5f3ff",
+    color: "#4c1d95",
+  },
+  filterDot: {
+    width: 6,
+    height: 6,
+    borderRadius: "999px",
+    background: "#10b981",
   },
 
   sectionHeader: {
@@ -769,17 +1300,18 @@ const sx = {
     flexDirection: "column",
     minHeight: 360,
   },
-  searchRow: { padding: 10, borderBottom: "1px solid #e5e7eb" },
-  input: {
-    width: "100%",
-    height: 34,
-    border: "1px solid #d1d5db",
-    borderRadius: 6,
-    padding: "0 10px",
-    background: "white",
-    color: "#111827",
-    fontSize: 13,
+  leftHeaderRow: {
+    padding: 10,
+    borderBottom: "1px solid #e5e7eb",
   },
+  filterHint: {
+    padding: "4px 12px",
+    fontSize: 11,
+    color: "#4b5563",
+    borderBottom: "1px solid #e5e7eb",
+    background: "#f9fafb",
+  },
+
   list: { display: "grid" },
   rowBtnList: {
     display: "grid",
@@ -869,4 +1401,154 @@ const sx = {
   },
 
   dot: { color: "#9ca3af" },
+
+  /* Filter modal */
+
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(17,24,39,0.35)",
+    display: "grid",
+    placeItems: "center",
+    zIndex: 50,
+    padding: 16,
+  },
+  modal: {
+    width: 880,
+    maxWidth: "96vw",
+    maxHeight: "90vh",
+    background: "white",
+    borderRadius: 10,
+    boxShadow: "0 12px 30px rgba(0,0,0,0.2)",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+  modalHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "10px 12px",
+    borderBottom: "1px solid #e5e7eb",
+    background: "#f9fafb",
+  },
+  iconBtn: {
+    height: 30,
+    width: 30,
+    border: "1px solid #e5e7eb",
+    borderRadius: 6,
+    background: "white",
+    display: "grid",
+    placeItems: "center",
+  },
+  modalBody: {
+    padding: 12,
+    overflowY: "auto",
+    flex: "1 1 auto",
+  },
+  modalActionsRow: {
+    padding: "8px 12px 10px",
+    borderTop: "1px solid #e5e7eb",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  filterGrid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0,1.2fr) minmax(0,1fr)",
+    gap: 16,
+  },
+  filterSection: {
+    borderRadius: 8,
+    border: "1px solid #e5e7eb",
+    background: "#f9fafb",
+    padding: 10,
+    fontSize: 12,
+  },
+  filterTitle: { fontWeight: 600, color: "#111827", marginBottom: 4 },
+  filterSub: { color: "#6b7280", marginBottom: 8, fontSize: 11 },
+
+  scoreChipsRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  scoreChip: {
+    minWidth: 28,
+    height: 26,
+    borderRadius: 999,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    fontSize: 12,
+    cursor: "pointer",
+  },
+  scoreChipActive: {
+    borderColor: "#6d28d9",
+    background: "#f5f3ff",
+    color: "#4c1d95",
+    fontWeight: 600,
+  },
+
+  radioCol: {
+    display: "grid",
+    gap: 4,
+  },
+  radioRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12,
+    color: "#111827",
+  },
+
+  aspectFilterGrid: {
+    display: "grid",
+    gap: 6,
+  },
+  aspectFilterRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  aspectFilterLabel: { fontSize: 12, color: "#111827" },
+  aspectFilterControls: {
+    display: "flex",
+    gap: 6,
+  },
+  aspectChip: {
+    width: 28,
+    height: 26,
+    borderRadius: 999,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    cursor: "pointer",
+  },
+  aspectChipActiveUp: {
+    borderColor: "#10b981",
+    background: "#ecfdf5",
+  },
+  aspectChipActiveDown: {
+    borderColor: "#ef4444",
+    background: "#fef2f2",
+  },
+
+  tertiaryBtn: {
+    height: 32,
+    border: "1px solid #e5e7eb",
+    borderRadius: 6,
+    background: "#f9fafb",
+    padding: "0 10px",
+    fontSize: 12,
+  },
+  primaryBtn: {
+    height: 32,
+    border: "1px solid #6d28d9",
+    borderRadius: 6,
+    background: "#6d28d9",
+    color: "white",
+    padding: "0 12px",
+    fontSize: 12,
+  },
 };
