@@ -232,13 +232,16 @@ const DEFAULT_FILTERS = {
     acc[name] = { up: false, down: false };
     return acc;
   }, {}),
-  timePreset: "all", // 'all' | '7d' | '30d' | '90d'
+  timePreset: "all", // 'all' | '7d' | '30d' | '90d' | 'custom'
+  customFrom: "",    // YYYY-MM-DD
+  customTo: "",      // YYYY-MM-DD
 };
 
 function hasActiveFilters(filters) {
   if (filters.scores.length > 0) return true;
   if (filters.comments !== "all") return true;
   if (filters.timePreset !== "all") return true;
+  if (filters.customFrom || filters.customTo) return true;
   for (const val of Object.values(filters.aspects)) {
     if (val.up || val.down) return true;
   }
@@ -562,7 +565,7 @@ function FeedbackViewer({
 
       {/* Aspect summary (one line per aspect) */}
       <div style={sx.aspectCard}>
-        <div style={sx.aspectHeader}>Aspect reactions (answered only)</div>
+        <div style={sx.aspectHeader}>Aspect reactions</div>
         <div style={sx.aspectList}>
           {aspectSummary.map(({ aspect, total, up, down, upPct, downPct }) => (
             <div key={aspect} style={sx.aspectRowLine}>
@@ -588,9 +591,7 @@ function FeedbackViewer({
             </div>
           )}
         </div>
-        <div style={sx.aspectFootNote}>
-          Based on contributors who answered the survey and provided quick reactions for each aspect.
-        </div>
+      
       </div>
 
       {/* Body: two-column viewer */}
@@ -872,11 +873,14 @@ function FiltersModal({ value, onChange, onClose }) {
             </div>
 
             {/* Time window (stubbed against labels) */}
+                        {/* Time window (stubbed against labels + custom range inputs) */}
             <div style={sx.filterSection}>
               <div style={sx.filterTitle}>Time window</div>
               <div style={sx.filterSub}>
                 Approximate filters based on “2h ago”, “3d ago”, “yesterday”, etc.
+                For custom date ranges, use the fields below.
               </div>
+
               <div style={sx.radioCol}>
                 <label style={sx.radioRow}>
                   <input
@@ -893,6 +897,7 @@ function FiltersModal({ value, onChange, onClose }) {
                   />
                   <span>All time</span>
                 </label>
+
                 <label style={sx.radioRow}>
                   <input
                     type="radio"
@@ -908,6 +913,7 @@ function FiltersModal({ value, onChange, onClose }) {
                   />
                   <span>Last 7 days</span>
                 </label>
+
                 <label style={sx.radioRow}>
                   <input
                     type="radio"
@@ -923,6 +929,7 @@ function FiltersModal({ value, onChange, onClose }) {
                   />
                   <span>Last 30 days</span>
                 </label>
+
                 <label style={sx.radioRow}>
                   <input
                     type="radio"
@@ -938,7 +945,56 @@ function FiltersModal({ value, onChange, onClose }) {
                   />
                   <span>Last 90 days</span>
                 </label>
+
+                <label style={sx.radioRow}>
+                  <input
+                    type="radio"
+                    name="timePreset"
+                    value="custom"
+                    checked={local.timePreset === "custom"}
+                    onChange={(e) =>
+                      setLocal((prev) => ({
+                        ...prev,
+                        timePreset: e.target.value,
+                      }))
+                    }
+                  />
+                  <span>Custom range</span>
+                </label>
               </div>
+
+              {local.timePreset === "custom" && (
+                <div style={sx.customDateRow}>
+                  <div style={sx.customDateField}>
+                    <span style={sx.customDateLabel}>From</span>
+                    <input
+                      type="date"
+                      value={local.customFrom || ""}
+                      onChange={(e) =>
+                        setLocal((prev) => ({
+                          ...prev,
+                          customFrom: e.target.value,
+                        }))
+                      }
+                      style={sx.dateInput}
+                    />
+                  </div>
+                  <div style={sx.customDateField}>
+                    <span style={sx.customDateLabel}>To</span>
+                    <input
+                      type="date"
+                      value={local.customTo || ""}
+                      onChange={(e) =>
+                        setLocal((prev) => ({
+                          ...prev,
+                          customTo: e.target.value,
+                        }))
+                      }
+                      style={sx.dateInput}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1254,6 +1310,31 @@ const sx = {
     display: "flex",
     flexDirection: "column",
     gap: 6,
+  },
+    customDateRow: {
+    marginTop: 10,
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  customDateField: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    minWidth: 150,
+  },
+  customDateLabel: {
+    fontSize: 12,
+    color: "#6b7280",
+  },
+  dateInput: {
+    height: 32,
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    padding: "0 8px",
+    fontSize: 13,
+    background: "#fff",
+    color: "#111827",
   },
   aspectRowLine: {
     display: "flex",
