@@ -5,7 +5,7 @@ export default function Home() {
 
     { to: "/sample2", label: "Configure Feedback" },
 
-     { to: "/sample6", label: "Submit Button Feedback" },
+     { to: "/sample6", label: "Submit/Skip Button Feedback" },
           { to: "/sample7", label: "Product Dashboard" },
   ];
 

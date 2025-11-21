@@ -184,12 +184,11 @@ export default function Sample6() {
 
               {/* Additional comments (task-level) */}
               <label style={sx.field}>
-                <span style={sx.label}>Additional comments for this task (optional)</span>
                 <textarea
                   rows={4}
                   value={comments}
                   onChange={(e) => setComments(e.target.value.slice(0, 500))}
-                  placeholder="Note anything specific about this task that the reviewer should know…"
+                  placeholder="Additional Comments"
                   style={sx.textarea}
                 />
                 <div style={sx.hint}>{comments.length}/500</div>
@@ -212,15 +211,15 @@ export default function Sample6() {
                     
                     <fieldset style={sx.group}>
                       <legend style={sx.legend}>
-                        Based on your experience, how likely are you to recommend this project to another contributor?
+                        Overall, how satisfied were you with your experience contributing to this project?
                       </legend>
                       <NpsPicker
                         value={projectForm.nps}
                         onChange={(v) => setProjectForm((f) => ({ ...f, nps: v }))}
                       />
                       <div style={sx.npsHintRow}>
-                        <span style={sx.npsHintLeft}>0 = Not at all likely</span>
-                        <span style={sx.npsHintRight}>10 = Extremely likely</span>
+                        <span style={sx.npsHintLeft}>0 = Not at all satisfied</span>
+                        <span style={sx.npsHintRight}>10 = Extremely satisfied</span>
                       </div>
                     </fieldset>
 

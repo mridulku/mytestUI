@@ -18,10 +18,46 @@ const DEFAULT_WORKFLOW_CONF = {
     openText: true,
   },
   quickReactions: [
-    { id: "instr", label: "Guidelines", core: true, enabled: true },
-    { id: "reviewer", label: "Reviewer decisions", core: true, enabled: true },
-    { id: "tool", label: "User Interface", core: true, enabled: true },
-    { id: "ui", label: "Workload per task", core: true, enabled: true },
+    {
+      id: "instr",
+      label: "Guidelines",
+      core: true,
+      enabled: true,
+      description:
+        "How clear and easy-to-follow the written guidelines and examples for this project were.",
+    },
+    {
+      id: "reviewer",
+      label: "Reviewer decisions",
+      core: true,
+      enabled: true,
+      description:
+        "How fair and consistent reviewer feedback and accept/reject decisions felt.",
+    },
+    {
+      id: "tool",
+      label: "User Interface",
+      core: true,
+      enabled: true,
+      description:
+        "How stable and responsive the FTS tool felt while working on this project.",
+    },
+    {
+      id: "workload",
+      label: "Workload per task",
+      core: true,
+      enabled: true,
+      description:
+        "How reasonable the time and effort per task felt for this project.",
+    },
+    {
+      id: "payment",
+      label: "Payment",
+      core: true,
+      enabled: true,
+      description:
+        "How clear and fair the payment for this project felt to you.",
+    },
   ],
 };
 
@@ -35,10 +71,21 @@ export default function Sample2() {
   const patchWorkflow = (patch) =>
     setWorkflow((w) => ({ ...w, ...patch }));
 
+  const coreReactions = workflow.quickReactions.filter(r => r.core);
+  const extraReactions = workflow.quickReactions.filter(r => !r.core);
+
+  const coreLabels = coreReactions
+    .map(r => (r.label || "").trim())
+    .filter(Boolean);
+
+  const extraLabels = extraReactions
+    .map(r => (r.label || "").trim())
+    .filter(Boolean);
+
   return (
     <section style={sx.page}>
       <div style={sx.headerRow}>
-        <h2 style={sx.h2}>Configure Feedback</h2>
+        <h2 style={sx.h2}>Contributor Experience</h2>
         <div style={{ flex: 1 }} />
         <button
           style={sx.secondaryBtn}
@@ -48,10 +95,7 @@ export default function Sample2() {
         </button>
       </div>
 
-      <div style={sx.note}>
-        Configure the workflow survey that appears when contributors{" "}
-        <b>submit or skip a task</b> in this workflow.
-      </div>
+  
 
       <div style={sx.cardsCol}>
         <Card>
@@ -60,7 +104,7 @@ export default function Sample2() {
               <div style={sx.cardTitle}>Workflow Survey</div>
               <div style={sx.cardDesc}>
                 Enable contributors to provide workflow-level feedback{" "}
-                <b>inside the Submit / Skip modal.</b>
+                <b>inside the Submit / Skip Task modal.</b>
               </div>
             </div>
             <div style={sx.headerControls}>
@@ -74,11 +118,29 @@ export default function Sample2() {
             </div>
           </div>
 
-          <div style={sx.summaryBox}>
+                     <div style={sx.summaryBox}>
             <div style={sx.summaryTitle}>Included questions</div>
             <ul style={sx.summaryList}>
-              <li>Recommendation (NPS-style)</li>
-              <li>Quick reactions (thumbs up / down) on key aspects</li>
+              <li>CSAT</li>
+
+              <li>
+                Quick reactions (thumbs up / down) on key aspects{" "}
+                {coreLabels.length > 0 && (
+                  <span style={sx.summaryHint}>
+                    ({coreLabels.join(", ")})
+                  </span>
+                )}
+              </li>
+
+              {extraLabels.length > 0 && (
+                <li>
+                  Custom quick reactions{" "}
+                  <span style={sx.summaryHint}>
+                    ({extraLabels.join(", ")})
+                  </span>
+                </li>
+              )}
+
               <li>Open comment</li>
             </ul>
           </div>
@@ -117,16 +179,22 @@ function WorkflowSettings({ value, onChange, onClose }) {
       quickReactions: curr.quickReactions.filter((r) => r.id !== id),
     }));
 
-  const addQuickReaction = () => {
-    const id = "q_" + Math.random().toString(36).slice(2, 8);
-    setLocal((curr) => ({
-      ...curr,
-      quickReactions: [
-        ...curr.quickReactions,
-        { id, label: "", core: false, enabled: true },
-      ],
-    }));
-  };
+const addQuickReaction = () => {
+  const id = "q_" + Math.random().toString(36).slice(2, 8);
+  setLocal((curr) => ({
+    ...curr,
+    quickReactions: [
+      ...curr.quickReactions,
+      {
+        id,
+        label: "",
+        core: false,
+        enabled: true,
+        description: "",
+      },
+    ],
+  }));
+};
 
   const apply = () => {
     onChange(local);
@@ -139,11 +207,11 @@ function WorkflowSettings({ value, onChange, onClose }) {
       <div style={sx.fieldGroup}>
         <div style={sx.groupTitle}>Fixed questions</div>
         <div style={sx.fixedItem}>
-          <div style={sx.fixedLabel}>Recommendation (NPS-style)</div>
+          <div style={sx.fixedLabel}>Recommendation (CSAT)</div>
           <div style={sx.fixedDesc}>
-            “How likely are you to recommend this workflow to another annotator?”
+            “Overall, how satisfied were you with your experience contributing to this project?”
             <br />
-            Scale: 0–10 (Not at all likely → Extremely likely)
+            Scale: 0–10 (Not at all satisfied → Extremely satisfied)
           </div>
           <div style={sx.fixedTag}>Always included</div>
         </div>
@@ -161,29 +229,35 @@ function WorkflowSettings({ value, onChange, onClose }) {
       <div style={sx.fieldGroup}>
         <div style={sx.groupTitle}>Quick reactions (thumbs up / thumbs down)</div>
         <div style={sx.subtext}>
-          Configure the aspects for which contributors can give quick reactions.
+          Configure the aspects for which contributors can give quick reactions and their descriptions which contributors see.
         </div>
 
-        <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-          {local.quickReactions.map((r) => (
-            <QuickReactionRow
-              key={r.id}
-              reaction={r}
-              onChange={(patch) => updateQuickReaction(r.id, patch)}
-              onRemove={() => removeQuickReaction(r.id)}
-            />
-          ))}
-        </div>
+        <div
+  style={{
+    display: "grid",
+    gap: 8,
+    marginTop: 8,
+    maxHeight: 260,         // keeps modal from growing forever
+    overflowY: "auto",
+    paddingRight: 4,
+  }}
+>
+  {local.quickReactions.map((r) => (
+    <QuickReactionRow
+      key={r.id}
+      reaction={r}
+      onChange={(patch) => updateQuickReaction(r.id, patch)}
+      onRemove={() => removeQuickReaction(r.id)}
+    />
+  ))}
+</div>
 
         <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between" }}>
-          <button style={sx.smallBtn} onClick={addQuickReaction}>
-            Add reaction
-          </button>
-          <div style={{ fontSize: 11, color: "#6b7280", maxWidth: 260, textAlign: "right" }}>
-            Core aspects (like “Instruction clarity”) cannot be removed,
-            only toggled on/off. Additional aspects can be edited or deleted.
-          </div>
-        </div>
+  <button style={sx.smallBtn} onClick={addQuickReaction}>
+    Add reaction
+  </button>
+
+</div>
       </div>
 
       <div style={{ gridColumn: "1 / -1", ...sx.modalActionsRow }}>
@@ -198,46 +272,61 @@ function WorkflowSettings({ value, onChange, onClose }) {
   );
 }
 
+
 function QuickReactionRow({ reaction, onChange, onRemove }) {
-  const { label, core, enabled } = reaction;
+  const { label, core, description = "" } = reaction;
   const canDelete = !core;
 
   return (
-    <div style={sx.qrRow}>
-      <input
+    <div style={sx.qrCard}>
+      {/* Header row: label + meta chips */}
+      <div style={sx.qrHeader}>
+        <input
+          style={{
+            ...sx.qrLabelInput,
+            backgroundColor: core ? "#f9fafb" : "white",
+          }}
+          value={label}
+          onChange={(e) => onChange({ label: e.target.value })}
+          placeholder={core ? "" : "New aspect (e.g. 'Support responsiveness')"}
+          disabled={core}
+        />
+
+        <div style={sx.qrMeta}>
+          {core && (
+            <span
+              style={sx.coreBadge}
+              title="Always included; cannot be deleted"
+            >
+              Core
+            </span>
+          )}
+
+          {canDelete && (
+            <button
+              type="button"
+              style={sx.iconOnlyBtn}
+              onClick={onRemove}
+              title="Remove reaction"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Description shown on contributor side (info icon tooltip) */}
+      <textarea
+        rows={2}
         style={{
-          ...sx.input,
-          flex: 1,
+          ...sx.qrDesc,
           backgroundColor: core ? "#f9fafb" : "white",
         }}
-        value={label}
-        onChange={(e) => onChange({ label: e.target.value })}
-        placeholder={core ? "" : "New aspect (e.g. 'Support responsiveness')"}
-        disabled={core}
+        value={description}
+        onChange={(e) => onChange({ description: e.target.value })}
+        placeholder="Short description shown to contributors when they hover the info icon."
+        disabled={core && !!description} // core descriptions fixed
       />
-      <label style={sx.check} title="Include in survey">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => onChange({ enabled: e.target.checked })}
-        />
-        <span style={{ fontSize: 12 }}>Include</span>
-      </label>
-      {canDelete && (
-        <button
-          type="button"
-          style={sx.iconOnlyBtn}
-          onClick={onRemove}
-          title="Remove reaction"
-        >
-          ×
-        </button>
-      )}
-      {core && (
-        <span style={sx.coreBadge} title="Required aspect; cannot be deleted">
-          Core
-        </span>
-      )}
     </div>
   );
 }
@@ -484,5 +573,89 @@ const sx = {
     color: "white",
     padding: "0 12px",
     fontSize: 12,
+  },
+
+  qrCard: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    background: "#fff",
+    padding: 8,
+    display: "grid",
+    gap: 6,
+  },
+
+  qrHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  qrLabelInput: {
+    flex: 1,
+    height: 30,
+    border: "1px solid #d1d5db",
+    borderRadius: 6,
+    padding: "0 10px",
+    fontSize: 13,
+  },
+
+  qrMeta: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  qrDesc: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 6,
+    padding: "6px 8px",
+    fontSize: 12,
+    color: "#4b5563",
+    resize: "vertical",
+    minHeight: 44,
+  },
+
+  coreBadge: {
+    fontSize: 11,
+    padding: "2px 6px",
+    borderRadius: 999,
+    background: "#eef2ff",
+    color: "#4f46e5",
+    border: "1px solid #c7d2fe",
+    whiteSpace: "nowrap",
+  },
+
+    reactionsSummary: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTop: "1px solid #e5e7eb",
+    display: "grid",
+    gap: 4,
+  },
+  reactionsTitle: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "#4b5563",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  reactionsRow: {
+    display: "flex",
+    gap: 6,
+    fontSize: 12,
+    alignItems: "baseline",
+    flexWrap: "wrap",
+  },
+  reactionsLabel: {
+    fontWeight: 500,
+    color: "#6b7280",
+    minWidth: 64,
+  },
+  reactionsValue: {
+    color: "#111827",
+  },
+    summaryHint: {
+    fontSize: 12,
+    color: "#6b7280",
   },
 };
