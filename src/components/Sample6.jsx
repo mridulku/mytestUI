@@ -225,17 +225,12 @@ export default function Sample6() {
 
                     <fieldset style={sx.group}>
   <legend style={sx.legend}>Quick reactions to key aspects</legend>
-  <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>
-    Use 👍 / 👎 to rate different parts of this project. Hover on the <span title="More details">ℹ️</span> icon
-    if you’re unsure what an item means.
-  </div>
+
   <div style={{ display: "grid", gap: 8 }}>
     {QUICK_ASPECTS.map((aspect) => (
       <FeatureRow
         key={aspect.key}
-        emoji={aspect.emoji}
         label={aspect.label}
-        tooltip={aspect.help}
         rating={projectForm.featureRatings[aspect.key] ?? null}
         onRate={(val) =>
           setProjectForm((f) => ({
@@ -247,7 +242,6 @@ export default function Sample6() {
     ))}
   </div>
 </fieldset>
-
                     <label style={sx.field}>
                       <span style={sx.label}>Anything else you want to share? (optional)</span>
                       <textarea
@@ -299,36 +293,11 @@ const PROJECT_FEATURES = [
 ];
 
 const QUICK_ASPECTS = [
-  {
-    key: "instructions",
-    emoji: "📖",
-    label: "Guidelines",
-    help: "How clear and easy-to-follow the written guidelines and examples for this project were.",
-  },
-  {
-    key: "reviewer",
-    emoji: "🧑‍⚖️",
-    label: "Reviewer decisions",
-    help: "How fair and consistent reviewer feedback and accept/reject decisions felt.",
-  },
-  {
-    key: "tool",
-    emoji: "⚙️",
-    label: "User Interface",
-    help: "How stable and responsive the FTS tool felt while working on this project.",
-  },
-  {
-    key: "workload",
-    emoji: "⏱️",
-    label: "Workload per task",
-    help: "How reasonable the time and effort per task felt for this project.",
-  },
-  {
-    key: "payment",
-    emoji: "💰",
-    label: "Payment",
-    help: "How clear and fair the payment for this project felt to you.",
-  },
+  { key: "guidelines", label: "How clear were the guidelines for this project?" },
+  { key: "reviewer", label: "Did you find the reviewer decisions fair?" },
+  { key: "tool", label: "Did you find the tool stable and responsive?" },
+  { key: "effort", label: "Did you find the effort per task reasonable?" },
+  { key: "payment", label: "Did you find the payment clear and fair?" },
 ];
 
 /* ---------------- Layout primitives ---------------- */
@@ -417,35 +386,11 @@ function NpsPicker({ value = -1, onChange }) {
   );
 }
 
-function FeatureRow({ emoji, label, tooltip, rating, onRate }) {
+function FeatureRow({ label, rating, onRate }) {
   return (
     <div style={sx.featureRow}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: 16 }}>{emoji}</span>
+      <div style={{ display: "flex", alignItems: "center" }}>
         <span style={sx.featureLabel}>{label}</span>
-
-        {tooltip && (
-          <span
-            title={tooltip}
-            style={{
-              marginLeft: 4,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: 16,
-              width: 16,
-              borderRadius: "999px",
-              border: "1px solid #d1d5db",
-              background: "#f9fafb",
-              fontSize: 10,
-              fontWeight: 600,
-              color: "#6b7280",
-              cursor: "help",
-            }}
-          >
-            i
-          </span>
-        )}
       </div>
 
       <div style={sx.thumbs}>
